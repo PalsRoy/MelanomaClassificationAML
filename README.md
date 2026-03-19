@@ -1,12 +1,12 @@
 # Melanoma Classification (AML Project)
 
-EfficientNet-based melanoma classifier adapted from the **1st Place Solution** to the
-SIIM-ISIC Melanoma Classification Kaggle Challenge
+This project is designed to assist healthcare professionals for automatically identifying melanoma in skin lesion images. EfficientNet-based melanoma classifier adapted from the **1st Place Solution** to the SIIM-ISIC Melanoma Classification Kaggle Challenge
 ([arXiv:2010.05351](http://arxiv.org/abs/2010.05351)).
 
 ## Architecture
 
 **EfficientNet-B4** with Noisy Student pretraining, using:
+
 - Multi-sample dropout (5 masks averaged) for regularization
 - 9-class output head (multi-class outperforms binary per competition findings)
 - Melanoma probability extracted via softmax at inference
