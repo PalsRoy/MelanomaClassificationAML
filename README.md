@@ -28,7 +28,7 @@ melanoma_project/
 └── subs/              # Submission CSVs
 ```
 
-## Quick Start — Local (Apple Silicon)
+## Quick Start — Local (Apple Silicon Laptop)
 
 ```bash
 conda activate melanomaClassificationAML
