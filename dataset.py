@@ -100,3 +100,15 @@ class MelanomaDataset(Dataset):
         
         target = torch.tensor(row['target'], dtype=torch.long)
         return image, target
+
+        def load_folds(csv_path='train_with_folds.csv'):
+            """Load the pre-computed fold assignments shared across the team."""
+            df = pd.read_csv(csv_path)
+            return df
+        
+        
+        def get_fold_dataframes(df, fold):
+            """Split a DataFrame into train and val for a given fold."""
+            df_val = df[df['fold'] == fold].reset_index(drop=True)
+            df_trn = df[df['fold'] != fold].reset_index(drop=True)
+            return df_trn, df_val
