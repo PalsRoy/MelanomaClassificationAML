@@ -1,137 +1,98 @@
-"""
-train.py - Training & Validation Functions
-Supports CUDA (with AMP) and MPS / CPU (without AMP).
-"""
-
-import time
-import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.metrics import roc_auc_score
-from tqdm import tqdm
-
-# Melanoma is class 0 in our DIAGNOSIS2IDX mapping
-MEL_IDX = 0
+import torch.nn.functional as F
+import numpy as np
 
 
-def train_one_epoch(model, loader, optimizer, criterion, device,
-                    scaler=None, use_amp=False):
+class FocalLoss(nn.Module):
     """
-    Run one full pass through the training data.
+    Focal Loss (Lin et al. 2017, "Focal Loss for Dense Object Detection")
     
-    For each batch:
-      1. Forward pass — get model predictions
-      2. Compute loss — how wrong were we
-      3. Backward pass — calculate gradients
-      4. Optimizer step — nudge weights to reduce loss
+    FL(p_t) = -alpha * (1 - p_t)^gamma * log(p_t)
+    
+    The (1 - p_t)^gamma term down-weights easy (high-confidence) examples,
+    making the model focus on hard ones — typically the minority class.
     
     Args:
-        model:     PyTorch model
-        loader:    DataLoader for training data
-        optimizer: Adam, SGD, etc.
-        criterion: loss function (e.g. CrossEntropyLoss)
-        device:    'cuda', 'mps', or 'cpu'
-        scaler:    GradScaler (only used with AMP, can be None)
-        use_amp:   if True, use mixed precision (CUDA only)
+        alpha: weighting factor (typical 0.25)
+        gamma: focusing parameter (typical 2.0). Higher = more focus on hard examples.
     """
-    model.train()
-    running_loss = 0.0
-    correct = 0
-    total = 0
+    def __init__(self, alpha=0.25, gamma=2.0):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
     
-    pbar = tqdm(loader, desc='  Train', leave=False)
-    for images, targets in pbar:
-        images = images.to(device, non_blocking=True)
-        targets = targets.to(device, non_blocking=True)
-        
-        optimizer.zero_grad()
-        
-        if use_amp and device.type == 'cuda':
-            # Mixed precision path (CUDA only)
-            with torch.cuda.amp.autocast():
-                logits = model(images)
-                loss = criterion(logits, targets)
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-        else:
-            # Standard precision path (MPS, CPU, or CUDA without AMP)
-            logits = model(images)
-            loss = criterion(logits, targets)
-            loss.backward()
-            optimizer.step()
-        
-        # Track metrics
-        running_loss += loss.item() * images.size(0)
-        _, predicted = logits.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
-        
-        pbar.set_postfix(
-            loss=f'{loss.item():.4f}',
-            acc=f'{correct/total:.4f}'
-        )
-    
-    return running_loss / total, correct / total
+    def forward(self, logits, targets):
+        ce = F.cross_entropy(logits, targets, reduction='none')
+        p_t = torch.exp(-ce)
+        focal = self.alpha * (1 - p_t) ** self.gamma * ce
+        return focal.mean()
 
 
-@torch.no_grad()
-def validate_one_epoch(model, loader, criterion, device):
+class ClassBalancedLoss(nn.Module):
     """
-    Run one full pass through validation data.
-    Returns (loss, AUC).
+    Class-Balanced Loss (Cui et al. 2019, "Class-Balanced Loss Based on Effective Number of Samples")
     
-    Note: validation does NOT use AMP — we want the most precise
-    predictions for AUC computation, and validation is fast anyway.
+    Weights each class by 1 / E_n where E_n = (1 - beta^n) / (1 - beta)
+    is the "effective number" of samples for class n.
+    
+    For highly imbalanced data, this adjusts loss contribution so rare
+    classes aren't dominated by frequent ones.
+    
+    Args:
+        samples_per_class: list of int, sample count for each class
+        beta: hyperparameter (typical 0.9999), controls how aggressively to re-weight
     """
-    model.eval()
-    running_loss = 0.0
-    all_targets = []
-    all_probs = []
+    def __init__(self, samples_per_class, beta=0.9999):
+        super().__init__()
+        # Effective number of samples per class
+        effective_num = 1.0 - np.power(beta, samples_per_class)
+        weights = (1.0 - beta) / np.array(effective_num)
+        weights = weights / np.sum(weights) * len(samples_per_class)
+        self.weights = torch.tensor(weights, dtype=torch.float32)
     
-    for images, targets in tqdm(loader, desc='  Valid', leave=False):
-        images = images.to(device, non_blocking=True)
-        targets = targets.to(device, non_blocking=True)
-        
-        logits = model(images)
-        loss = criterion(logits, targets)
-        running_loss += loss.item() * images.size(0)
-        
-        # Get melanoma probability via softmax
-        probs = torch.softmax(logits, dim=1)[:, MEL_IDX]
-        
-        all_targets.append(targets.cpu().numpy())
-        all_probs.append(probs.cpu().numpy())
+    def forward(self, logits, targets):
+        weights = self.weights.to(logits.device)
+        return F.cross_entropy(logits, targets, weight=weights)
+
+
+def get_loss_function(loss_type='ce', samples_per_class=None,
+                     focal_alpha=0.25, focal_gamma=2.0, beta=0.9999):
+    """
+    Factory function for loss functions, supporting multiple
+    imbalance handling strategies.
     
-    all_targets = np.concatenate(all_targets)
-    all_probs = np.concatenate(all_probs)
+    Options:
+        'ce'      - Standard CrossEntropyLoss (no imbalance handling)
+        'wce'     - Weighted CrossEntropy (inverse frequency)
+        'focal'   - Focal Loss
+        'cb'      - Class-Balanced Loss (Cui et al. 2019)
     
-    # Compute binary AUC: melanoma vs everything else
-    binary_targets = (all_targets == MEL_IDX).astype(int)
-    if binary_targets.sum() > 0 and binary_targets.sum() < len(binary_targets):
-        auc = roc_auc_score(binary_targets, all_probs)
+    Args:
+        loss_type: which loss to use
+        samples_per_class: required for 'wce' and 'cb' loss types
+        focal_alpha, focal_gamma: hyperparameters for focal loss
+        beta: hyperparameter for class-balanced loss
+    """
+    if loss_type == 'ce':
+        return nn.CrossEntropyLoss()
+    
+    elif loss_type == 'wce':
+        if samples_per_class is None:
+            raise ValueError("samples_per_class required for weighted CE")
+        # Inverse frequency weighting
+        weights = 1.0 / np.array(samples_per_class)
+        weights = weights / weights.sum() * len(samples_per_class)
+        weights = torch.tensor(weights, dtype=torch.float32)
+        return nn.CrossEntropyLoss(weight=weights)
+    
+    elif loss_type == 'focal':
+        return FocalLoss(alpha=focal_alpha, gamma=focal_gamma)
+    
+    elif loss_type == 'cb':
+        if samples_per_class is None:
+            raise ValueError("samples_per_class required for class-balanced loss")
+        return ClassBalancedLoss(samples_per_class, beta=beta)
+    
     else:
-        auc = 0.0
-    
-    return running_loss / len(all_targets), auc
-
-
-def make_amp_components(use_amp, device):
-    """
-    Helper to create AMP components if and only if appropriate.
-    
-    Returns:
-        scaler: GradScaler instance, or None if AMP is disabled
-        use_amp: actual use_amp value (False if device doesn't support it)
-    
-    Use in your notebook like:
-        scaler, use_amp = make_amp_components(use_amp=True, device=CFG.device)
-        # then pass to train_one_epoch
-    """
-    if use_amp and device.type == 'cuda':
-        scaler = torch.cuda.amp.GradScaler()
-        return scaler, True
-    else:
-        if use_amp and device.type != 'cuda':
-            print(f"⚠️  AMP requested but device is {device.type}, falling back to FP32")
-        return None, False
+        raise ValueError(f"Unknown loss_type: {loss_type}")
