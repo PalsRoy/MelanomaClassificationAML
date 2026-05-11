@@ -1,6 +1,6 @@
-# Training Log — Week 1-6
+# Training Log — Week 1-2
 
-**Date Range:** 2026-04-XX to 2026-04-XX  
+**Date Range:** 2026-02-28 to 2026-03-15 
 **Module:** EEEM068 — Advanced Machine Learning  
 **Project:** Melanoma Classification (SIIM-ISIC 2020)  
 **Repository:** https://github.com/PalsRoy/MelanomaClassificationAML
