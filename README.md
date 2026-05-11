@@ -147,6 +147,14 @@ This produces:
 - `figures/fig_training_duration.png` — 5 vs 15 epochs on Swin-Base
 - `figures/summary_table.csv` — full results summary
 
+![Validation AUC over epochs across five architectures.](figures/fig_architecture_auc.png?raw=true "Validation AUC over 5 epochs across five architectures")
+
+![Loss curves across five architectures.](figures/fig_architecture_loss.png?raw=true "Loss curves across five architectures")
+
+![Imbalance handling CrossEntropy vs Focal Loss on
+Swin-Base.](figures/fig_imbalance_handling.png?raw=true "Imbalance handling CrossEntropy vs Focal Loss on
+Swin-Base")
+
 ## References
 
 - Esteva, A., et al. (2017). *Dermatologist-level classification of skin cancer with deep neural networks.* Nature 542, 115–118. [DOI](https://doi.org/10.1038/nature21056)
