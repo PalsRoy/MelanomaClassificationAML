@@ -1,6 +1,6 @@
 # Melanoma Classification (AML Project)
 
-Deep learning approach to melanoma classification using the SIIM-ISIC 2020 Melanoma Classification dataset. We compare CNN and Transformer architectures and evaluate class-imbalance handling strategies under identical training conditions.
+Deep learning approach to melanoma classification using the SIIM-ISIC 2020 Melanoma Classification dataset. We compare CNN and Transformer architectures and evaluate class-imbalance handling strategies under matched optimisation conditions.
 
 Reference: SIIM-ISIC 2020 Kaggle 1st-place solution ([arXiv:2010.05351](https://arxiv.org/abs/2010.05351)).
 
@@ -10,13 +10,13 @@ Reference: SIIM-ISIC 2020 Kaggle 1st-place solution ([arXiv:2010.05351](https://
 
 ### Architecture Comparison (5 epochs, CrossEntropy, fold 0)
 
-| Rank | Model | Type | Parameters | Image Size | Val AUC |
-|------|-------|------|------------|------------|---------|
-| 1 | Swin-Base | Transformer | 88M | 224 | **0.9363** |
-| 2 | ConvNeXt-Small | CNN | 50M | 384 | 0.9289 |
-| 3 | DeiT-Small | Transformer | 22M | 224 | 0.9183 |
-| 4 | EfficientNet-B3 | CNN | 12M | 384 | 0.9126 |
-| 5 | EfficientNet-B4 | CNN | 19M | 384 | 0.9085 |
+| Rank | Model | Type | Parameters | Image Size | Batch Size | Val AUC |
+|------|-------|------|------------|------------|------------|---------|
+| 1 | Swin-Base | Transformer | 88M | 224 | 32 | **0.9363** |
+| 2 | ConvNeXt-Small | CNN | 50M | 384 | 32 | 0.9289 |
+| 3 | DeiT-Small | Transformer | 22M | 224 | 96 | 0.9183 |
+| 4 | EfficientNet-B3 | CNN | 12M | 384 | 32 | 0.9126 |
+| 5 | EfficientNet-B4 | CNN | 19M | 384 | 64 | 0.9085 |
 
 ### Imbalance Handling (Swin-Base, 5 epochs)
 
@@ -97,7 +97,7 @@ The custom head applies five independent dropout masks (p=0.5) to backbone featu
 - Adam optimizer, initial learning rate 3×10⁻⁵
 - Cosine annealing LR schedule (decays to 1% of `init_lr` by final epoch)
 - Mixed precision (AMP) on CUDA, FP32 on Apple MPS
-- Batch size 64 (96 for DeiT-Small)
+- Batch size scaled per model to fit GPU memory (96 for DeiT-Small, 64 for EfficientNet-B4, 32 for EfficientNet-B3 / ConvNeXt-Small / Swin-Base)
 - 5 epochs for architecture comparison; 15-epoch deep dive on best architecture
 - Best checkpoint selected by maximum validation AUC, saved every epoch to Drive
 
@@ -146,14 +146,6 @@ This produces:
 - `figures/fig_imbalance_handling.png` — CrossEntropy vs Focal Loss on Swin-Base
 - `figures/fig_training_duration.png` — 5 vs 15 epochs on Swin-Base
 - `figures/summary_table.csv` — full results summary
-
-![Validation AUC over epochs across five architectures.](figures/fig_architecture_auc.png?raw=true "Validation AUC over 5 epochs across five architectures")
-
-![Loss curves across five architectures.](figures/fig_architecture_loss.png?raw=true "Loss curves across five architectures")
-
-![Imbalance handling CrossEntropy vs Focal Loss on
-Swin-Base.](figures/fig_imbalance_handling.png?raw=true "Imbalance handling CrossEntropy vs Focal Loss on
-Swin-Base")
 
 ## References
 
