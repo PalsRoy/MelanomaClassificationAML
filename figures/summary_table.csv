@@ -1,0 +1,8 @@
+Experiment,Type,Model,Params,Img,Epochs,Best AUC,Best epoch,Final train L,Final val L,Time (min)
+"Swin-Base (CE, 5 ep)",Transformer,swin_base_patch4_window7_224,86.8M,224,5,0.9363174430441956,5,0.0479,0.0602,64.6
+"Swin-Base (Focal, 5 ep)",Transformer,swin_base_patch4_window7_224,86.8M,224,5,0.9293675310542654,5,0.0036,0.0045,62.0
+"ConvNeXt-Small (CE, 5 ep)",CNN,convnext_small,49.5M,384,5,0.928864168618267,5,0.0514,0.06,66.4
+"Swin-Base (CE, 15 ep)",Transformer,swin_base_patch4_window7_224,86.8M,224,15,0.9275346147866947,14,0.0142,0.1031,179.7
+"DeiT-Small (CE, 5 ep)",Transformer,deit_small_patch16_224,21.7M,224,5,0.9182935574623012,5,0.0042,0.0045,64.0
+"EfficientNet-B3 (CE, 5 ep)",CNN,tf_efficientnet_b3_ns,10.7M,384,5,0.9125954696127055,3,0.0593,0.0637,67.4
+"EfficientNet-B4 (CE, 5 ep)",CNN,tf_efficientnet_b4_ns,17.6M,384,5,0.9084670200442307,4,0.0639,0.0672,68.4
