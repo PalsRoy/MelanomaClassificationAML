@@ -17,7 +17,7 @@ MEL_IDX = 0
 
 
 # ===========================================================================
-# Loss Functions for Class Imbalance Handling
+# Loss Functions for Class Imbalance Handling.
 # ===========================================================================
 class FocalLoss(nn.Module):
     """
